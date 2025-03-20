@@ -20,7 +20,7 @@ This project uses **OpenCV for Unity**.
 Please purchase and install it from the Unity Asset Store:  
 [OpenCV for Unity](https://assetstore.unity.com/packages/tools/integration/opencv-for-unity-21088?locale=en-US)  
 
-Tested with **OpenCV for Unity v2.6.5**.
+This project has been tested with **OpenCV for Unity v2.6.5**.
 
     
 ## Usage
