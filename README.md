@@ -1,12 +1,15 @@
 # Quest ArUco Marker Tracking
 
-This repository is based on the following sample code for the Meta Quest 3/3S Passthrough Camera API, with added functionality for marker detection using OpenCV:
+This repository enables **single and multi-marker detection and tracking** using OpenCV with the **Meta Quest 3/3S Passthrough Camera API**.  
+It provides a robust solution for **augmented reality applications** on Quest devices, supporting both individual markers and multiple markers simultaneously.
 
-- [Unity-PassthroughCameraApiSamples](https://github.com/oculus-samples/Unity-PassthroughCameraApiSamples)
-- [QuestCameraKit](https://github.com/xrdevrob/QuestCameraKit)
+For a demonstration, check out the following videos:
 
-For a demonstration of how it works, check out the following video:  
-[![Demo Video](https://img.youtube.com/vi/cJSjYMuJu8w/0.jpg)](https://www.youtube.com/watch?v=cJSjYMuJu8w)
+▶ **Single Marker Tracking Demo**  
+[![Single Marker Demo](https://img.youtube.com/vi/cJSjYMuJu8w/0.jpg)](https://www.youtube.com/watch?v=cJSjYMuJu8w)
+
+▶ **Multi-Marker Tracking Demo**  
+[![Multi-Marker Demo](https://img.youtube.com/vi/cJSjYMuJu8w/0.jpg)](https://www.youtube.com/watch?v=cJSjYMuJu8w)
 
 ## Dependencies
 
@@ -29,3 +32,20 @@ Additionally, the marker size is assumed to be **0.1m**.
 
 🔄 **View Mode Switching**  
 You can switch the view mode by pressing the **A button** on the controller.
+
+## Reference Repositories
+
+This implementation is based on the following sample repositories:  
+
+- [Unity-PassthroughCameraApiSamples](https://github.com/oculus-samples/Unity-PassthroughCameraApiSamples)  
+- [QuestCameraKit](https://github.com/xrdevrob/QuestCameraKit)  
+
+## Contact
+
+If you have any questions, feel free to reach out:  
+
+- **X (Twitter)**:  
+  - (EN) [@Tks_Yoshinaga](https://x.com/Tks_Yoshinaga)  
+  - (JP) [@Taka_Yoshinaga](https://x.com/Taka_Yoshinaga)  
+- **LinkedIn**: [Tks Yoshinaga](https://www.linkedin.com/in/tks-yoshinaga/)  
+- **Discord**: [Join the community](https://discord.gg/kDENwuPD4t)  
