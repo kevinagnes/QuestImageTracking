@@ -22,16 +22,19 @@ Please purchase and install it from the Unity Asset Store:
 
 Tested with **OpenCV for Unity v2.6.5**.
 
+    
 ## Usage
 
+### 🔖 Marker Preparation  
 To use this project, please download and install the required **ArUco markers** from the link below:  
 [ArUco Marker PDF](https://github.com/TakashiYoshinaga/QuestArUcoMarkerTracking/blob/main/ArUcoMarker.pdf)  
 
+### ⚙ Default Settings  
 By default, this project uses **DICT_4X4_50** as the marker dictionary.  
-Additionally, the marker size is assumed to be **0.1m**.   
-If needed, feel free to modify these settings to fit your use case.  
+Additionally, the marker size is assumed to be **0.1m**.  
+**If needed, feel free to modify these settings to fit your use case.**  
 
-🔄 **View Mode Switching**  
+### 🔄 View Mode Switching  
 You can switch the view mode by pressing the **A button** on the controller.
 
 ## Reference Repositories
