@@ -18,3 +18,10 @@ Please purchase and install it from the Unity Asset Store:
 [OpenCV for Unity](https://assetstore.unity.com/packages/tools/integration/opencv-for-unity-21088?locale=en-US)  
 
 Tested with **OpenCV for Unity v2.6.5**.
+
+## Usage
+
+To use this project, please download and install the required **ArUco markers** from the link below:  
+[ArUco Marker PDF](https://github.com/TakashiYoshinaga/QuestArUcoMarkerTracking/blob/main/ArUcoMarker.pdf)  
+
+By default, this project uses **DICT_4X4_50** as the marker dictionary.
