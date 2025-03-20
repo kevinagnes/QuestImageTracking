@@ -9,7 +9,7 @@ For a demonstration, check out the following videos:
 [![Single Marker Demo](https://img.youtube.com/vi/cJSjYMuJu8w/0.jpg)](https://www.youtube.com/watch?v=cJSjYMuJu8w)
 
 ▶ **Multi-Marker Tracking Demo**  
-[![Multi-Marker Demo](https://img.youtube.com/vi/cJSjYMuJu8w/0.jpg)](https://www.youtube.com/watch?v=cJSjYMuJu8w)
+[![Multi-Marker Demo](https://img.youtube.com/vi/Y0mqQ_nxve8/0.jpg)](https://www.youtube.com/watch?v=Y0mqQ_nxve8)
 
 ## Dependencies
 
