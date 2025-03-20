@@ -28,7 +28,8 @@ To use this project, please download and install the required **ArUco markers** 
 [ArUco Marker PDF](https://github.com/TakashiYoshinaga/QuestArUcoMarkerTracking/blob/main/ArUcoMarker.pdf)  
 
 By default, this project uses **DICT_4X4_50** as the marker dictionary.  
-Additionally, the marker size is assumed to be **0.1m**.  
+Additionally, the marker size is assumed to be **0.1m**.   
+If needed, feel free to modify these settings to fit your use case.  
 
 🔄 **View Mode Switching**  
 You can switch the view mode by pressing the **A button** on the controller.
