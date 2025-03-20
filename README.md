@@ -1,4 +1,4 @@
-# QuestArUcoMarkerTracking
+# Quest ArUco Marker Tracking
 
 This repository is based on the following sample code for the Meta Quest 3/3S Passthrough Camera API, with added functionality for marker detection using OpenCV:
 
