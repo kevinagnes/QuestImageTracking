@@ -24,4 +24,5 @@ Tested with **OpenCV for Unity v2.6.5**.
 To use this project, please download and install the required **ArUco markers** from the link below:  
 [ArUco Marker PDF](https://github.com/TakashiYoshinaga/QuestArUcoMarkerTracking/blob/main/ArUcoMarker.pdf)  
 
-By default, this project uses **DICT_4X4_50** as the marker dictionary.
+By default, this project uses **DICT_4X4_50** as the marker dictionary.  
+Additionally, the marker size is assumed to be **0.1m**.
