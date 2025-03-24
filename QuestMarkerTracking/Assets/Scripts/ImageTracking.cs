@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using OpenCVForUnity.Calib3dModule;
 using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
@@ -17,11 +18,18 @@ public class ImageTracking : MonoBehaviour
     /// Division factor for input image resolution. Higher values improve performance but reduce detection accuracy.
     /// </summary>
     [SerializeField] private int _divideNumber = 2;
+
+    /// <summary>
+    /// Coefficient for low-pass filter (0-1). Higher values mean more smoothing.
+    /// </summary>
+    [Range(0, 1)]
+    [SerializeField] private float _poseFilterCoefficient = 0.5f;
     public int DivideNumber { get => _divideNumber; set => _divideNumber = value; }
 
     [Header("Pattern Settings")]
     [Tooltip("The image that will be tracked.")]
-    public Texture2D patternTexture;
+    [SerializeField] Texture2D patternTexture;
+    [SerializeField] float _patternSize = 0.1f;
 
     // Camera calibration matrices.
     private Mat _cameraIntrinsicMatrix;
@@ -54,6 +62,12 @@ public class ImageTracking : MonoBehaviour
 
     private bool _isReady = false;
     public bool IsReady { get => _isReady; set => _isReady = value; }
+    [SerializeField] private DebugHelpers _imageDebugger;
+
+    /// <summary>
+    /// Dictionary storing previous pose data for each marker ID for smoothing
+    /// </summary>
+    private PoseData _prevPose;
 
 
     /// <summary>
@@ -67,7 +81,8 @@ public class ImageTracking : MonoBehaviour
     /// <param name="fy">Focal length Y</param>
     public void Initialize(int imageWidth, int imageHeight, float cx, float cy, float fx, float fy)
     {
-        InitializeMatrices(imageWidth, imageHeight, cx, cy, fx, fy);        
+        _prevPose = new PoseData();
+        InitializeMatrices(imageWidth, imageHeight, cx, cy, fx, fy);      
     }
 
     /// <summary>
@@ -119,6 +134,9 @@ public class ImageTracking : MonoBehaviour
             _pattern = new Pattern();
             _patternTrackingInfo = new PatternTrackingInfo();
             _patternDetector = new PatternDetector(null, null, null, true);
+            _patternDetector.enableHomographyRefinement = true;  // Enable refinement for better accuracy
+            _patternDetector.enableRatioTest = true;             // Enable ratio test for better matches
+            _patternDetector.homographyReprojectionThreshold = 3.0f; // Lower threshold for more accurate homography
 
             // Build and train the pattern from the provided image.
             bool patternBuildSucceeded = _patternDetector.buildPatternFromImage(patternMat, _pattern);
@@ -126,6 +144,8 @@ public class ImageTracking : MonoBehaviour
             {
                 _patternDetector.train(_pattern);
                 _isReady = true;
+
+                _imageDebugger.showMat(patternMat);
             }
             else
             {
@@ -202,11 +222,6 @@ public class ImageTracking : MonoBehaviour
         return _patternDetector.findPattern(_grayMat, _patternTrackingInfo);
     }
 
-    /// <summary>
-    /// Estimates the pose of the detected pattern and applies it to the AR object.
-    /// </summary>
-    /// <param name="ARGameObject"></param>
-    /// <param name="camTransform"></param>
     public void EstimateImagePose(GameObject ARGameObject, Transform camTransform)
     {
         if (!_isReady)
@@ -215,17 +230,51 @@ public class ImageTracking : MonoBehaviour
             return;
         }
 
-        // Compute the 3D pose from the detected pattern.
+        // Compute the 3D pose from the detected pattern using the physical marker size
         _patternTrackingInfo.computePose(_pattern, _cameraIntrinsicMatrix, _cameraDistortionCoeffs);
+
         Matrix4x4 transformationM = _patternTrackingInfo.pose3d;
+        
+        // Rest of your existing code...
+        Matrix4x4 invertZM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, 1, -1));
+        Matrix4x4 invertYM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, -1, 1));
 
-        // Convert coordinate systems.
-        Matrix4x4 ARM = _invertYM * transformationM * _invertYM;
-        ARM = ARM * _invertYM * _invertZM;
+        // right-handed coordinates system (OpenCV) to left-handed one (Unity)
+        Matrix4x4 ARM = invertYM * transformationM * invertYM;
 
-        // Update the transform based on the chosen mode.
+        // Apply Y-axis and Z-axis refletion matrix. (Adjust the posture of the AR object)
+        ARM = ARM * invertYM * invertZM;
+
         ARM = camTransform.localToWorldMatrix * ARM;
-        ARUtils.SetTransformFromMatrix(ARGameObject.transform, ref ARM);
+
+        // Extract the current pose from the transformation matrix
+        PoseData currentPose = ARUtils.ConvertMatrixToPoseData(ref ARM);
+        
+        // Apply depth adjustment (brings object closer or pushes it farther)
+        Vector3 cameraToObject = currentPose.pos - camTransform.position;
+        float currentDistance = cameraToObject.magnitude;
+        Vector3 direction = cameraToObject.normalized;
+        
+        // Adjust the position along the camera-to-object vector
+        currentPose.pos = camTransform.position + direction * (currentDistance * _patternSize);
+        
+        // Apply smoothing if we have previous pose data
+        if (_prevPose.rot != default)
+        {
+            // Lerp between previous and current poses based on the filter coefficient
+            currentPose.pos = Vector3.Lerp(_prevPose.pos, currentPose.pos, 1 - _poseFilterCoefficient);
+            currentPose.rot = Quaternion.Slerp(_prevPose.rot, currentPose.rot, 1 - _poseFilterCoefficient);
+        }
+
+        // Save the current pose for next frame
+        _prevPose = currentPose;
+
+        // Convert back to matrix and apply to transform
+        Matrix4x4 smoothedARM = ARUtils.ConvertPoseDataToMatrix(ref currentPose);
+        ARUtils.SetTransformFromMatrix(ARGameObject.transform, ref smoothedARM);
+        
+        // Apply scale adjustment directly to the game object
+        ARGameObject.transform.localScale = Vector3.one * _patternSize;
     }
 
     /// <summary>

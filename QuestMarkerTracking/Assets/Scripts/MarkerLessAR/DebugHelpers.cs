@@ -30,7 +30,7 @@ namespace OpenCVMarkerLessAR
 
             Utils.matToTexture2D(mat, texture);
 
-            gameObject.transform.localScale = new Vector3(texture.width, texture.height, 1);
+            // gameObject.transform.localScale = new Vector3(texture.width, texture.height, 1);
             gameObject.GetComponent<Renderer>().material.mainTexture = texture;
         }
 

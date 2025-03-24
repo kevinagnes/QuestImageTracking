@@ -25,8 +25,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
     private Vector2Int CameraResolution => _webCamTextureManager.RequestedResolution;
     [Tooltip("Optional raw image for visualizing the camera feed.")]
     [SerializeField] private RawImage _resultRawImage;
-    [Tooltip("The AR camera.")]
-    [SerializeField] private Camera ARCamera;
+
     [Tooltip("An anchor for the camera.")]
     [SerializeField] private Transform _cameraAnchor;
     [SerializeField] private Canvas _cameraCanvas;
@@ -187,8 +186,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
     {
         if(_imageTracking.IsImageDetected(_webCamTextureManager.WebCamTexture, _resultTexture))
         {
-            Debug.Log("Image detected!");
-            _imageTracking.EstimateImagePose(ARGameObject, ARCamera.transform);
+            _imageTracking.EstimateImagePose(ARGameObject, _cameraAnchor);
         }
     }
 
