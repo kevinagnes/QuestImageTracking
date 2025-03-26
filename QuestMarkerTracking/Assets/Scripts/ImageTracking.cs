@@ -7,9 +7,9 @@ using OpenCVMarkerLessAR;
 using UnityEngine;
 
 /// <summary>
-/// A component that performs image (pattern) tracking using a pattern detector.
-/// It initializes the pattern from a given Texture2D, computes the pose from a live frame,
-/// and applies the transformation to either an AR object or the AR camera.
+/// A component that performs image (pattern) tracking using a multi-pattern detector.
+/// It initializes patterns from Texture2Ds, computes poses from a live frame,
+/// and applies transformations to the corresponding AR objects.
 /// </summary>
 public class ImageTracking : MonoBehaviour
 {
@@ -26,23 +26,21 @@ public class ImageTracking : MonoBehaviour
     [SerializeField] private float _poseFilterCoefficient = 0.5f;
     public int DivideNumber { get => _divideNumber; set => _divideNumber = value; }
 
-    [Header("Pattern Settings")]
-    [Tooltip("The image that will be tracked.")]
-    [SerializeField] Texture2D patternTexture;
-    [SerializeField] float _patternSize = 0.1f;
-
+    [Header("Markers")]
+    [SerializeField] private List<ARTrackedImage> _trackedImages = new List<ARTrackedImage>();
+    
     // Camera calibration matrices.
     private Mat _cameraIntrinsicMatrix;
     private MatOfDouble _cameraDistortionCoeffs;
 
-    // Matrices for converting from OpenCV’s right-handed to Unity’s left-handed coordinate system.
+    // Matrices for converting from OpenCV's right-handed to Unity's left-handed coordinate system.
     private Matrix4x4 _invertYM;
     private Matrix4x4 _invertZM;
 
     // Pattern detection objects.
-    private Pattern _pattern;
-    private PatternTrackingInfo _patternTrackingInfo;
-    private PatternDetector _patternDetector;
+    private MultiplePatternDetector _multiPatternDetector;
+    private List<string> _detectedPatternIds = new List<string>();
+    private Dictionary<string, PatternTrackingInfo> _patternTrackingInfos = new Dictionary<string, PatternTrackingInfo>();
 
     // OpenCV matrices for image processing
     /// <summary>
@@ -55,20 +53,10 @@ public class ImageTracking : MonoBehaviour
     /// </summary>
     private Mat _halfSizeMat;
 
-    /// <summary>
-    /// Grayscale mat for pattern detection.
-    /// </summary>
-    private Mat _grayMat;
-
     private bool _isReady = false;
     public bool IsReady { get => _isReady; set => _isReady = value; }
-    [SerializeField] private DebugHelpers _imageDebugger;
 
-    /// <summary>
-    /// Dictionary storing previous pose data for each marker ID for smoothing
-    /// </summary>
-    private PoseData _prevPose;
-
+    public List<ARTrackedImage> TrackedImages => _trackedImages;
 
     /// <summary>
     /// Initialize the marker tracking system with camera parameters
@@ -81,8 +69,74 @@ public class ImageTracking : MonoBehaviour
     /// <param name="fy">Focal length Y</param>
     public void Initialize(int imageWidth, int imageHeight, float cx, float cy, float fx, float fy)
     {
-        _prevPose = new PoseData();
-        InitializeMatrices(imageWidth, imageHeight, cx, cy, fx, fy);      
+        InitializeMatrices(imageWidth, imageHeight, cx, cy, fx, fy);
+        
+        // Create multi-pattern detector
+        _multiPatternDetector = new MultiplePatternDetector();
+        _multiPatternDetector.enableRatioTest = true;
+        _multiPatternDetector.enableHomographyRefinement = true;
+        _multiPatternDetector.homographyReprojectionThreshold = 3.0f;
+        
+        // Initialize all markers
+        foreach (var image in _trackedImages)
+        {
+            InitializeTrackedImage(image);
+        }
+        
+        _isReady = true;
+    }
+
+    /// <summary>
+    /// Initialize a single marker's pattern
+    /// </summary>
+    private void InitializeTrackedImage(ARTrackedImage trackedImage)
+    {
+        if (trackedImage.markerTexture != null)
+        {
+            // Convert the Texture2D to an OpenCV Mat
+            Mat patternMat = new Mat(trackedImage.markerTexture.height, trackedImage.markerTexture.width, CvType.CV_8UC4);
+            Utils.texture2DToMat(trackedImage.markerTexture, patternMat);
+
+            // Create the pattern object if needed
+            if (trackedImage.pattern == null)
+            {
+                trackedImage.pattern = new Pattern();
+            }
+            
+            // Create tracking info if needed
+            if (trackedImage.trackingInfo == null)
+            {
+                trackedImage.trackingInfo = new PatternTrackingInfo();
+            }
+
+            // Build and register the pattern with the detector
+            bool patternBuildSucceeded = _multiPatternDetector.BuildAndRegisterPattern(
+                patternMat, 
+                trackedImage.pattern,
+                trackedImage.id);
+                
+            if (patternBuildSucceeded)
+            {
+                DebugHelpers imageDebugger = trackedImage.virtualObject.GetComponentInChildren<DebugHelpers>();
+                if(imageDebugger != null)
+                {
+                    imageDebugger.showMat(patternMat);
+                }
+
+                // Store reference to tracking info
+                _patternTrackingInfos[trackedImage.id] = trackedImage.trackingInfo;
+            }
+            else
+            {
+                Debug.LogError($"Pattern build failed for marker {trackedImage.id}! Check the pattern texture for sufficient keypoints.");
+            }
+            
+            patternMat.Dispose();
+        }
+        else
+        {
+            Debug.LogError($"Pattern texture not set for marker {trackedImage.id}!");
+        }
     }
 
     /// <summary>
@@ -116,47 +170,10 @@ public class ImageTracking : MonoBehaviour
         //Initialize all processing mats
         _originalWebcamMat = new Mat(originalHeight, originalWidth, CvType.CV_8UC4);
         _halfSizeMat = new Mat(processingHeight, processingWidth, CvType.CV_8UC4);
-        _grayMat = new Mat(processingHeight, processingWidth, CvType.CV_8UC1);
 
         // Set up conversion matrices.
         _invertYM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, -1, 1));
         _invertZM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, 1, -1));
-
-        // Initialize the pattern detector if a pattern texture is provided.
-        if (patternTexture != null)
-        {
-            // Convert the Texture2D to an OpenCV Mat.
-            Mat patternMat = new Mat(patternTexture.height, patternTexture.width, CvType.CV_8UC4);
-            Utils.texture2DToMat(patternTexture, patternMat);
-            // (Optional: convert color space if needed.)
-
-            // Create the pattern and tracking info objects.
-            _pattern = new Pattern();
-            _patternTrackingInfo = new PatternTrackingInfo();
-            _patternDetector = new PatternDetector(null, null, null, true);
-            _patternDetector.enableHomographyRefinement = true;  // Enable refinement for better accuracy
-            _patternDetector.enableRatioTest = true;             // Enable ratio test for better matches
-            _patternDetector.homographyReprojectionThreshold = 3.0f; // Lower threshold for more accurate homography
-
-            // Build and train the pattern from the provided image.
-            bool patternBuildSucceeded = _patternDetector.buildPatternFromImage(patternMat, _pattern);
-            if (patternBuildSucceeded)
-            {
-                _patternDetector.train(_pattern);
-                _isReady = true;
-
-                _imageDebugger.showMat(patternMat);
-            }
-            else
-            {
-                Debug.LogError("Pattern build failed! Check the pattern texture for sufficient keypoints.");
-            }
-            patternMat.Dispose();
-        }
-        else
-        {
-            Debug.LogError("Pattern texture not set!");
-        }
     }
 
     /// <summary>
@@ -180,22 +197,22 @@ public class ImageTracking : MonoBehaviour
         {
             _halfSizeMat.release();
         }
-        if (_grayMat != null)
+        if (_multiPatternDetector != null)
         {
-            _grayMat.release();
+            _multiPatternDetector.Release();
         }
     }
 
     /// <summary>
-    /// Detect if the pattern is in the provided webcam texture
+    /// Detect images in the provided webcam texture
     /// </summary>
     /// <param name="webCamTexture"></param>
     /// <param name="resultTexture"></param>
-    public bool IsImageDetected(WebCamTexture webCamTexture, Texture2D resultTexture = null)
+    public void DetectImages(WebCamTexture webCamTexture, Texture2D resultTexture = null)
     {
-        if(!_isReady || webCamTexture == null)
+        if(!_isReady || webCamTexture == null || _trackedImages.Count == 0)
         {
-            return false;
+            return;
         }
 
         // Get image from webcam at full size
@@ -204,25 +221,37 @@ public class ImageTracking : MonoBehaviour
         // Resize for processing
         Imgproc.resize(_originalWebcamMat, _halfSizeMat, _halfSizeMat.size());
 
-        // Convert to grayscale for image processing
-        if (_halfSizeMat.channels() == 4)
-        {
-            Imgproc.cvtColor(_halfSizeMat, _grayMat, Imgproc.COLOR_RGBA2GRAY);
-        }
-        else if (_halfSizeMat.channels() == 3)
-        {
-            Imgproc.cvtColor(_halfSizeMat, _grayMat, Imgproc.COLOR_RGB2GRAY);
-        }
-
+        // Display result if requested
         if (resultTexture != null)
         {
-            Utils.matToTexture2D(_grayMat, resultTexture);
+            Utils.matToTexture2D(_halfSizeMat, resultTexture);
         }
 
-        return _patternDetector.findPattern(_grayMat, _patternTrackingInfo);
+        // Reset detection state for all markers
+        foreach (var image in _trackedImages)
+        {
+            image.isDetected = false;
+        }
+
+        // Process image once to find all patterns
+        _multiPatternDetector.DetectPatterns(_halfSizeMat, _detectedPatternIds, _patternTrackingInfos);
+        
+        // Update detection state
+        foreach (var patternId in _detectedPatternIds)
+        {
+            // Find the corresponding tracked image
+            ARTrackedImage trackedImage = _trackedImages.Find(img => img.id == patternId);
+            if (trackedImage != null)
+            {
+                trackedImage.isDetected = true;
+                
+                // Since the detector writes directly to our tracking infos dictionary,
+                // we don't need to copy any data here
+            }
+        }
     }
 
-    public void EstimateImagePose(GameObject ARGameObject, Transform camTransform)
+    public void EstimateImagePoses(Transform camTransform)
     {
         if (!_isReady)
         {
@@ -230,51 +259,120 @@ public class ImageTracking : MonoBehaviour
             return;
         }
 
-        // Compute the 3D pose from the detected pattern using the physical marker size
-        _patternTrackingInfo.computePose(_pattern, _cameraIntrinsicMatrix, _cameraDistortionCoeffs);
-
-        Matrix4x4 transformationM = _patternTrackingInfo.pose3d;
-        
-        // Rest of your existing code...
-        Matrix4x4 invertZM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, 1, -1));
-        Matrix4x4 invertYM = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1, -1, 1));
-
-        // right-handed coordinates system (OpenCV) to left-handed one (Unity)
-        Matrix4x4 ARM = invertYM * transformationM * invertYM;
-
-        // Apply Y-axis and Z-axis refletion matrix. (Adjust the posture of the AR object)
-        ARM = ARM * invertYM * invertZM;
-
-        ARM = camTransform.localToWorldMatrix * ARM;
-
-        // Extract the current pose from the transformation matrix
-        PoseData currentPose = ARUtils.ConvertMatrixToPoseData(ref ARM);
-        
-        // Apply depth adjustment (brings object closer or pushes it farther)
-        Vector3 cameraToObject = currentPose.pos - camTransform.position;
-        float currentDistance = cameraToObject.magnitude;
-        Vector3 direction = cameraToObject.normalized;
-        
-        // Adjust the position along the camera-to-object vector
-        currentPose.pos = camTransform.position + direction * (currentDistance * _patternSize);
-        
-        // Apply smoothing if we have previous pose data
-        if (_prevPose.rot != default)
+        foreach (var image in _trackedImages)
         {
-            // Lerp between previous and current poses based on the filter coefficient
-            currentPose.pos = Vector3.Lerp(_prevPose.pos, currentPose.pos, 1 - _poseFilterCoefficient);
-            currentPose.rot = Quaternion.Slerp(_prevPose.rot, currentPose.rot, 1 - _poseFilterCoefficient);
+            if (image.isDetected && image.virtualObject != null)
+            {
+                // Compute the 3D pose from the detected pattern
+                image.trackingInfo.computePose(image.pattern, _cameraIntrinsicMatrix, _cameraDistortionCoeffs);
+                
+                Matrix4x4 transformationM = image.trackingInfo.pose3d;
+                
+                // Convert from OpenCV coordinates to Unity coordinates
+                Matrix4x4 ARM = _invertYM * transformationM * _invertYM;
+
+                // Apply Y-axis and Z-axis reflection matrices (adjust the posture of the AR object)
+                ARM = ARM * _invertYM * _invertZM;
+
+                // Transform to world space
+                ARM = camTransform.localToWorldMatrix * ARM;
+
+                // Extract the current pose from the transformation matrix
+                PoseData currentPose = ARUtils.ConvertMatrixToPoseData(ref ARM);
+                
+                // Apply depth adjustment (brings object closer or pushes it farther)
+                Vector3 cameraToObject = currentPose.pos - camTransform.position;
+                float currentDistance = cameraToObject.magnitude;
+                Vector3 direction = cameraToObject.normalized;
+                
+                // Adjust the position along the camera-to-object vector based on this marker's size
+                currentPose.pos = camTransform.position + direction * (currentDistance * image.physicalSize);
+                
+                // Apply smoothing if we have previous pose data
+                if (image.prevPose.rot != default)
+                {
+                    // Lerp between previous and current poses based on the filter coefficient
+                    currentPose.pos = Vector3.Lerp(image.prevPose.pos, currentPose.pos, 1 - _poseFilterCoefficient);
+                    currentPose.rot = Quaternion.Slerp(image.prevPose.rot, currentPose.rot, 1 - _poseFilterCoefficient);
+                }
+
+                // Save the current pose for next frame
+                image.prevPose = currentPose;
+
+                // Convert back to matrix and apply to transform
+                Matrix4x4 smoothedARM = ARUtils.ConvertPoseDataToMatrix(ref currentPose);
+                ARUtils.SetTransformFromMatrix(image.virtualObject.transform, ref smoothedARM);
+                
+                // Apply scale adjustment directly to the game object based on this marker's size
+                image.virtualObject.transform.localScale = Vector3.one * image.physicalSize;
+                
+                // Ensure the virtual object is visible
+                SetGameObjectVisibility(image.virtualObject, true);
+            }
+            else if (image.virtualObject != null)
+            {
+                // Hide the object if marker is not detected
+                //SetGameObjectVisibility(image.virtualObject, false);
+            }
         }
+    }
+    
+    /// <summary>
+    /// Sets the visibility of a GameObject
+    /// </summary>
+    private void SetGameObjectVisibility(GameObject obj, bool isVisible)
+    {
+        var rendererList = obj.GetComponentsInChildren<Renderer>(true);
+        foreach (var renderer in rendererList)
+        {
+            renderer.enabled = isVisible;
+        }
+    }
 
-        // Save the current pose for next frame
-        _prevPose = currentPose;
-
-        // Convert back to matrix and apply to transform
-        Matrix4x4 smoothedARM = ARUtils.ConvertPoseDataToMatrix(ref currentPose);
-        ARUtils.SetTransformFromMatrix(ARGameObject.transform, ref smoothedARM);
-        
-        // Apply scale adjustment directly to the game object
-        ARGameObject.transform.localScale = Vector3.one * _patternSize;
+    /// <summary>
+    /// Add a new marker at runtime
+    /// </summary>
+    public void AddImage(ARTrackedImage image)
+    {
+        // Only add if it doesn't already exist
+        if (!_trackedImages.Exists(img => img.id == image.id))
+        {
+            _trackedImages.Add(image);
+            
+            // Initialize the new tracked image
+            if (_isReady)
+            {
+                InitializeTrackedImage(image);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"Image with ID {image.id} already exists.");
+        }
+    }
+    
+    /// <summary>
+    /// Remove a marker at runtime
+    /// </summary>
+    public bool RemoveImage(string imageMarkerId)
+    {
+        int index = _trackedImages.FindIndex(m => m.id == imageMarkerId);
+        if (index >= 0)
+        {
+            // Unregister from detector
+            if (_multiPatternDetector != null)
+            {
+                _multiPatternDetector.UnregisterPattern(imageMarkerId);
+            }
+            
+            // Remove from tracking info dictionary
+            _patternTrackingInfos.Remove(imageMarkerId);
+            
+            // Remove from tracked images list
+            _trackedImages.RemoveAt(index);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>

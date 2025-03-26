@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using OpenCVForUnity.CoreModule;
@@ -34,10 +35,10 @@ public class ImageTrackingCoordinator : MonoBehaviour
     [Header("Image Tracking")]
     [Tooltip("The ImageTracking component that handles pattern detection.")]
     [SerializeField] private ImageTracking _imageTracking;
-
-    [Header("AR Object")]
-    [Tooltip("The GameObject to be updated with the tracked pose.")]
-    [SerializeField] private GameObject ARGameObject;
+    
+    [Header("Markers")]
+    [Tooltip("Add markers in the inspector or at runtime")]
+    [SerializeField] private List<ARTrackedImage> _trackedImagePrefabs = new List<ARTrackedImage>();
 
     private Texture2D _resultTexture;
     private bool _showCameraCanvas = true;
@@ -68,7 +69,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
 
         // Set initial visibility states
         _cameraCanvas.gameObject.SetActive(_showCameraCanvas);
-        SetARObjectVisibility(!_showCameraCanvas);
+        SetARObjectsVisibility(!_showCameraCanvas);
     }
 
     /// <summary>
@@ -98,7 +99,6 @@ public class ImageTrackingCoordinator : MonoBehaviour
         }
     }
 
-    
     /// <summary>
     /// Calculates the dimensions of the canvas based on the distance from the camera origin and the camera resolution.
     /// </summary>
@@ -132,6 +132,15 @@ public class ImageTrackingCoordinator : MonoBehaviour
         var width = intrinsics.Resolution.x;   // Image width
         var height = intrinsics.Resolution.y;  // Image height
 
+        // Add any markers from the inspector if they aren't already in the image tracking component
+        foreach (var image in _trackedImagePrefabs)
+        {
+            if (!_imageTracking.TrackedImages.Exists(m => m.id == image.id))
+            {
+                _imageTracking.TrackedImages.Add(image);
+            }
+        }
+
         // Configure the ImageTracking component
         _imageTracking.Initialize(width, height, cx, cy, fx, fy);
 
@@ -148,7 +157,6 @@ public class ImageTrackingCoordinator : MonoBehaviour
         _resultTexture = new Texture2D(width/divideNumber, height/divideNumber, TextureFormat.RGB24, false);
         _resultRawImage.texture = _resultTexture;
     }
-
 
     void Update()
     {
@@ -175,37 +183,39 @@ public class ImageTrackingCoordinator : MonoBehaviour
         {
             _showCameraCanvas = !_showCameraCanvas;
             _cameraCanvas.gameObject.SetActive(_showCameraCanvas);
-            SetARObjectVisibility(!_showCameraCanvas);
-        }
-    }
-
-        /// <summary>
-    /// Processes the current camera frame for image tracking.
-    /// </summary>
-    private void ProcessImageTracking()
-    {
-        if(_imageTracking.IsImageDetected(_webCamTextureManager.WebCamTexture, _resultTexture))
-        {
-            _imageTracking.EstimateImagePose(ARGameObject, _cameraAnchor);
+            SetARObjectsVisibility(!_showCameraCanvas);
         }
     }
 
     /// <summary>
-    /// Sets the visibility of the AR GameObject
+    /// Processes the current camera frame for image tracking.
     /// </summary>
-    private void SetARObjectVisibility(bool isVisible)
+    private void ProcessImageTracking()
     {
-        if (ARGameObject != null)
+        // Detect all markers in the current frame
+        _imageTracking.DetectImages(_webCamTextureManager.WebCamTexture, _resultTexture);
+        
+        // Update poses for all detected markers
+        _imageTracking.EstimateImagePoses(_cameraAnchor);
+    }
+
+    /// <summary>
+    /// Sets the visibility of all AR GameObjects
+    /// </summary>
+    private void SetARObjectsVisibility(bool isVisible)
+    {
+        foreach (var marker in _imageTracking.TrackedImages)
         {
-            var rendererList = ARGameObject.GetComponentsInChildren<Renderer>(true);
-            foreach (var renderer in rendererList)
+            if (marker.virtualObject != null)
             {
-                renderer.enabled = isVisible;
+                var rendererList = marker.virtualObject.GetComponentsInChildren<Renderer>(true);
+                foreach (var renderer in rendererList)
+                {
+                    renderer.enabled = isVisible && marker.isDetected;
+                }
             }
         }
     }
-
-
 
     /// <summary>
     /// Updates the positions and rotations of camera-related transforms based on head and camera poses.
@@ -227,6 +237,17 @@ public class ImageTrackingCoordinator : MonoBehaviour
         {
             _cameraCanvas.transform.position = cameraPose.position + cameraPose.rotation * Vector3.forward * _canvasDistance;
             _cameraCanvas.transform.rotation = cameraPose.rotation;
+        }
+    }
+    
+    /// <summary>
+    /// Add a new marker at runtime
+    /// </summary>
+    public void AddTrackedImage(ARTrackedImage marker)
+    {
+        if (_imageTracking != null && _imageTracking.IsReady)
+        {
+            _imageTracking.AddImage(marker);
         }
     }
 }
