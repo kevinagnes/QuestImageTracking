@@ -10,6 +10,7 @@ using PassthroughCameraSamples;
 using Meta.XR.Samples;
 using TryAR.MarkerTracking;
 using UnityEngine.Assertions;
+using TMPro;
 
 /// <summary>
 /// A coordinator that sets up the Quest passthrough camera (using WebCamTextureManager),
@@ -35,10 +36,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
     [Header("Image Tracking")]
     [Tooltip("The ImageTracking component that handles pattern detection.")]
     [SerializeField] private ImageTracking _imageTracking;
-    
-    [Header("Markers")]
-    [Tooltip("Add markers in the inspector or at runtime")]
-    [SerializeField] private List<ARTrackedImage> _trackedImagePrefabs = new List<ARTrackedImage>();
+    [SerializeField] private TextMeshPro _modeText;
 
     private Texture2D _resultTexture;
     private bool _showCameraCanvas = true;
@@ -132,15 +130,6 @@ public class ImageTrackingCoordinator : MonoBehaviour
         var width = intrinsics.Resolution.x;   // Image width
         var height = intrinsics.Resolution.y;  // Image height
 
-        // Add any markers from the inspector if they aren't already in the image tracking component
-        foreach (var image in _trackedImagePrefabs)
-        {
-            if (!_imageTracking.TrackedImages.Exists(m => m.id == image.id))
-            {
-                _imageTracking.TrackedImages.Add(image);
-            }
-        }
-
         // Configure the ImageTracking component
         _imageTracking.Initialize(width, height, cx, cy, fx, fy);
 
@@ -153,8 +142,8 @@ public class ImageTrackingCoordinator : MonoBehaviour
     /// </summary>
     private void ConfigureResultTexture(int width, int height)
     {
-        int divideNumber = _imageTracking.DivideNumber;
-        _resultTexture = new Texture2D(width/divideNumber, height/divideNumber, TextureFormat.RGB24, false);
+        float downsampleFactor = _imageTracking.ProcessingDownsampleFactor;
+        _resultTexture = new Texture2D(Mathf.RoundToInt(width * downsampleFactor), Mathf.RoundToInt(height * downsampleFactor), TextureFormat.RGB24, false);
         _resultRawImage.texture = _resultTexture;
     }
 
@@ -166,6 +155,9 @@ public class ImageTrackingCoordinator : MonoBehaviour
 
         // Toggle between camera view and AR visualization on button press
         HandleVisualizationToggle();
+
+        // Toggle between tracking modes on button press
+        HandleModeToggle();
 
         // Update camera positions
         UpdateCameraPoses();
@@ -183,7 +175,22 @@ public class ImageTrackingCoordinator : MonoBehaviour
         {
             _showCameraCanvas = !_showCameraCanvas;
             _cameraCanvas.gameObject.SetActive(_showCameraCanvas);
-            SetARObjectsVisibility(!_showCameraCanvas);
+            // SetARObjectsVisibility(!_showCameraCanvas);
+        }
+    }
+
+    // Add this to HandleVisualizationToggle() or create a new method
+    private void HandleModeToggle()
+    {
+        if (OVRInput.GetDown(OVRInput.Button.Two))
+        {
+            // Toggle between modes
+            ImageTrackingMode newMode = _imageTracking.GetTrackingMode() == ImageTrackingMode.Dynamic ? 
+                ImageTrackingMode.Static : 
+                ImageTrackingMode.Dynamic;
+                
+            _imageTracking.SetTrackingMode(newMode, true);
+            _modeText.text = newMode == ImageTrackingMode.Dynamic ? "Dynamic Mode" : "Static Mode";
         }
     }
 
@@ -192,6 +199,12 @@ public class ImageTrackingCoordinator : MonoBehaviour
     /// </summary>
     private void ProcessImageTracking()
     {
+        //If we are in static mode and all the images have been stabilized, we can skip the detection step
+        if (_imageTracking.GetTrackingMode() == ImageTrackingMode.Static && _imageTracking.AreAllImagesStabilized())
+        {
+            return;
+        }
+
         // Detect all markers in the current frame
         _imageTracking.DetectImages(_webCamTextureManager.WebCamTexture, _resultTexture);
         
