@@ -8,7 +8,6 @@ using OpenCVForUnity.UnityUtils.Helper;
 using UnityEngine.UI;
 using PassthroughCameraSamples;
 using Meta.XR.Samples;
-using TryAR.MarkerTracking;
 using UnityEngine.Assertions;
 using TMPro;
 
