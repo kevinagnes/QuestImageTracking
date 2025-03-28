@@ -167,7 +167,7 @@ public class ImageTracking : MonoBehaviour
                 
             if (patternBuildSucceeded)
             {
-                DebugHelpers imageDebugger = trackedImage.virtualObject.GetComponentInChildren<DebugHelpers>();
+                DebugHelpers imageDebugger = trackedImage.virtualObject.GetComponentInChildren<DebugHelpers>(true);
                 if(imageDebugger != null)
                 {
                     imageDebugger.showMat(patternMat);
@@ -497,6 +497,16 @@ public class ImageTracking : MonoBehaviour
             // Mark as stabilized and make visible
             image.isStabilized = true;
             SetGameObjectVisibility(image.virtualObject, true);
+            
+            if(image.virtualObject.TryGetComponent(out ARTrackedImageEvent arTrackedImageEvent))
+            {
+                // Invoke the event to notify that the image has been stabilized
+                arTrackedImageEvent.OnImageStabilized?.Invoke();
+            }
+            else
+            {
+                Debug.LogWarning($"ARTrackedImageEvent component not found on {image.virtualObject.name}.");
+            }
             
             Debug.Log($"Marker {image.data.id} stabilized after {image.similarPoseCount} similar poses");
         }

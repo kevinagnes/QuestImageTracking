@@ -24,24 +24,23 @@ public class ImageTrackingCoordinator : MonoBehaviour
     [SerializeField] private WebCamTextureManager _webCamTextureManager;
     private PassthroughCameraEye CameraEye => _webCamTextureManager.Eye;
     private Vector2Int CameraResolution => _webCamTextureManager.RequestedResolution;
-    [Tooltip("Optional raw image for visualizing the camera feed.")]
-    [SerializeField] private RawImage _resultRawImage;
 
     [Tooltip("An anchor for the camera.")]
     [SerializeField] private Transform _cameraAnchor;
-    [SerializeField] private Canvas _cameraCanvas;
-    [SerializeField] private float _canvasDistance = 1f;
 
     [Header("Image Tracking")]
     [Tooltip("The ImageTracking component that handles pattern detection.")]
     [SerializeField] private ImageTracking _imageTracking;
     [SerializeField] private TextMeshPro _modeText;
-
     private Texture2D _resultTexture;
-    private bool _showCameraCanvas = true;
+    private bool _isDebugMode = false;
+    GameObject[] _arHelpers;
 
     private IEnumerator Start()
     {
+        _arHelpers = GameObject.FindGameObjectsWithTag("ARHelper");
+        SetDebugMode(_isDebugMode);
+
         // Validate required components
         if (_webCamTextureManager == null)
         {
@@ -58,15 +57,8 @@ public class ImageTrackingCoordinator : MonoBehaviour
         // Initialize camera
         yield return InitializeCamera();
 
-        // Configure UI and tracking components
-        ScaleCameraCanvas();
-
         // Initialize the image tracking with proper camera parameters
         InitializeImageTracking();
-
-        // Set initial visibility states
-        _cameraCanvas.gameObject.SetActive(_showCameraCanvas);
-        SetARObjectsVisibility(!_showCameraCanvas);
     }
 
     /// <summary>
@@ -97,25 +89,6 @@ public class ImageTrackingCoordinator : MonoBehaviour
     }
 
     /// <summary>
-    /// Calculates the dimensions of the canvas based on the distance from the camera origin and the camera resolution.
-    /// </summary>
-    private void ScaleCameraCanvas()
-    {
-        var cameraCanvasRectTransform = _cameraCanvas.GetComponentInChildren<RectTransform>();
-        
-        // Calculate field of view based on camera parameters
-        var leftSidePointInCamera = PassthroughCameraUtils.ScreenPointToRayInCamera(CameraEye, new Vector2Int(0, CameraResolution.y / 2));
-        var rightSidePointInCamera = PassthroughCameraUtils.ScreenPointToRayInCamera(CameraEye, new Vector2Int(CameraResolution.x, CameraResolution.y / 2));
-        var horizontalFoVDegrees = Vector3.Angle(leftSidePointInCamera.direction, rightSidePointInCamera.direction);
-        var horizontalFoVRadians = horizontalFoVDegrees / 180 * System.Math.PI;
-        
-        // Calculate canvas size to match camera view
-        var newCanvasWidthInMeters = 2 * _canvasDistance * System.Math.Tan(horizontalFoVRadians / 2);
-        var localScale = (float)(newCanvasWidthInMeters / cameraCanvasRectTransform.sizeDelta.x);
-        cameraCanvasRectTransform.localScale = new Vector3(localScale, localScale, localScale);
-    }
-
-    /// <summary>
     /// Initializes the image tracking system with accurate camera parameters.
     /// </summary>
     private void InitializeImageTracking()
@@ -132,18 +105,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
         // Configure the ImageTracking component
         _imageTracking.Initialize(width, height, cx, cy, fx, fy);
 
-        // Set up result texture if needed
-        ConfigureResultTexture(width, height);
-    }
-
-    /// <summary>
-    /// Configures the texture for displaying camera and tracking results.
-    /// </summary>
-    private void ConfigureResultTexture(int width, int height)
-    {
-        float downsampleFactor = _imageTracking.ProcessingDownsampleFactor;
-        _resultTexture = new Texture2D(Mathf.RoundToInt(width * downsampleFactor), Mathf.RoundToInt(height * downsampleFactor), TextureFormat.RGB24, false);
-        _resultRawImage.texture = _resultTexture;
+        _modeText.text = _imageTracking.GetTrackingMode() == ImageTrackingMode.Dynamic ? "Dynamic Mode" : "Static Mode";
     }
 
     void Update()
@@ -153,7 +115,7 @@ public class ImageTrackingCoordinator : MonoBehaviour
             return;
 
         // Toggle between camera view and AR visualization on button press
-        HandleVisualizationToggle();
+        HandleDebugVisualizationToggle();
 
         // Toggle between tracking modes on button press
         HandleModeToggle();
@@ -168,13 +130,20 @@ public class ImageTrackingCoordinator : MonoBehaviour
     /// <summary>
     /// Handles button input to toggle between camera view and AR visualization.
     /// </summary>
-    private void HandleVisualizationToggle()
+    private void HandleDebugVisualizationToggle()
     {
         if (OVRInput.GetDown(OVRInput.Button.One))
         {
-            _showCameraCanvas = !_showCameraCanvas;
-            _cameraCanvas.gameObject.SetActive(_showCameraCanvas);
-            // SetARObjectsVisibility(!_showCameraCanvas);
+            SetDebugMode(!_isDebugMode);
+        }
+    }
+
+    private void SetDebugMode(bool enabled)
+    {
+        _isDebugMode = enabled;
+        foreach(var gameObject in _arHelpers)
+        {
+            gameObject.SetActive(enabled);
         }
     }
 
@@ -242,13 +211,6 @@ public class ImageTrackingCoordinator : MonoBehaviour
         {
             _cameraAnchor.position = cameraPose.position;
             _cameraAnchor.rotation = cameraPose.rotation;
-        }
-
-        // Position the canvas in front of the camera
-        if (_cameraCanvas != null)
-        {
-            _cameraCanvas.transform.position = cameraPose.position + cameraPose.rotation * Vector3.forward * _canvasDistance;
-            _cameraCanvas.transform.rotation = cameraPose.rotation;
         }
     }
     

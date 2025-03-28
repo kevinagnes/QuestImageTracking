@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/_ImageTracking/ImageTracking.unity
+    path: Assets/_ImageTracking/StaticImageTracking.unity
     guid: 5164fdf852ca9a243b290bbddfb656b2
   - enabled: 0
     path: Assets/PassthroughCameraApiSamples/StartScene/StartScene.unity
