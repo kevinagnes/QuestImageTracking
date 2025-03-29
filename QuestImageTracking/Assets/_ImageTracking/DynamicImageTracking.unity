@@ -3240,19 +3240,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _trackingMode: 0
-  _processingDownsampleFactor: 0.5
-  _dynamicPoseFilterCoefficient: 0.5
-  _hideObjectsWhenNotDetected: 1
+  _processingDownsampleFactor: 0.401
+  _dynamicPoseFilterCoefficient: 0.754
+  _hideObjectsWhenNotDetected: 0
   _stabilityPoseCount: 8
   _maxPositionDifference: 0.02
   _maxAngleDifference: 2
   _trackedImages:
   - data: {fileID: 11400000, guid: 45006e273882e59409dee25f1e5f91ad, type: 2}
-    virtualObject: {fileID: 938219558}
+    virtualObject: {fileID: 2126612438}
     isStabilized: 0
     similarPoseCount: 0
   - data: {fileID: 11400000, guid: a7123be160daf114cafd1c0058be05a6, type: 2}
-    virtualObject: {fileID: 2126612438}
+    virtualObject: {fileID: 938219558}
     isStabilized: 0
     similarPoseCount: 0
 --- !u!1 &550324989
@@ -4956,7 +4956,7 @@ GameObject:
   m_Component:
   - component: {fileID: 938219559}
   m_Layer: 0
-  m_Name: TestObject 1
+  m_Name: TestSphere
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -11865,7 +11865,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2126612439}
   m_Layer: 0
-  m_Name: TestObject 2
+  m_Name: TestCube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

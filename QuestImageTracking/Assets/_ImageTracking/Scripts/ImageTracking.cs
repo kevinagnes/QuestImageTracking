@@ -172,6 +172,7 @@ public class ImageTracking : MonoBehaviour
                 {
                     imageDebugger.showMat(patternMat);
                 }
+                SetGameObjectVisibility(trackedImage.virtualObject, false);
 
                 // Store reference to tracking info
                 _patternTrackingInfos[trackedImage.data.id] = trackedImage.trackingInfo;

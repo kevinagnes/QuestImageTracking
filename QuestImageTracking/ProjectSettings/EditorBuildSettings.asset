@@ -5,9 +5,12 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/_ImageTracking/StaticImageTracking.unity
     guid: 5164fdf852ca9a243b290bbddfb656b2
+  - enabled: 1
+    path: Assets/_ImageTracking/DynamicImageTracking.unity
+    guid: b5cd2a7d943f37847a2027b55fcf9a98
   - enabled: 0
     path: Assets/PassthroughCameraApiSamples/StartScene/StartScene.unity
     guid: 69e1b31c45bac42f88f75017ee404de1
