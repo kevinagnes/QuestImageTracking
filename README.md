@@ -5,7 +5,7 @@ It provides a robust solution for **augmented reality applications** on Quest de
 
 For a demonstration, check out the following video:
 
-[![Single Marker Demo](https://img.youtube.com/vi/VO-p3Q3inrI/0.jpg)](https://www.youtube.com/watch?v=VO-p3Q3inrI)
+[![thumbnailImageTracking (Personalizado)](https://github.com/user-attachments/assets/b94b261c-1704-4e83-8e03-0b41e320d883)](https://www.youtube.com/watch?v=VO-p3Q3inrI)
 
 ## Dependencies
 
