@@ -21,8 +21,9 @@ This project has been tested with **OpenCV for Unity v2.6.5**.
 ## 🔖 Marker Preparation  
 
 1. Set **Read/Write** on your Image Texture to Enabled
-2. Create an **AR Tracked Image Data**: Right Click -> Create -> AR-> Tracked Image Data
-3. Fill the data:
+2. Set Max Size to **512**
+3. Create an **AR Tracked Image Data**: Right Click -> Create -> AR-> Tracked Image Data
+4. Fill the data:
     - **id**: can be any arbitrary identifier
     - **Marker Texture**: your pattern texture (not all images will be valid, depends on the OpenCV pattern detector)
     - **Physical size**: this needs to match the real size of your target in meters, otherwise the depth/scale of the virtual object won't be correct
