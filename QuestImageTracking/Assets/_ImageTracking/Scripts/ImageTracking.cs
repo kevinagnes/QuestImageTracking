@@ -29,8 +29,13 @@ public enum ImageTrackingMode
 /// </summary>
 public class ImageTracking : MonoBehaviour
 {
+    [SerializeField] private List<ARTrackedImage> _trackedImages = new List<ARTrackedImage>();
+
     [Header("Tracking Mode")]
     [SerializeField] private ImageTrackingMode _trackingMode = ImageTrackingMode.Dynamic;
+
+    [Header("AR Camera")] // New Header
+    [SerializeField] private Camera _arCamera; // Assign your main AR Camera here in the Inspector
     
     [Header("Detection Settings")]
     /// <summary>
@@ -68,9 +73,7 @@ public class ImageTracking : MonoBehaviour
     /// </summary>
     [SerializeField] private float _maxAngleDifference = 2.0f;
 
-    [Header("Tracked images")]
-    [SerializeField] private List<ARTrackedImage> _trackedImages = new List<ARTrackedImage>();
-    
+
     // Camera calibration matrices.
     private Mat _cameraIntrinsicMatrix;
     private MatOfDouble _cameraDistortionCoeffs;
@@ -99,6 +102,23 @@ public class ImageTracking : MonoBehaviour
     public bool IsReady { get => _isReady; set => _isReady = value; }
 
     public List<ARTrackedImage> TrackedImages => _trackedImages;
+
+    /// <summary>
+    /// Checks if any image is currently stabilized in Static mode.
+    /// </summary>
+    /// <returns>True if at least one image is stabilized, false otherwise.</returns>
+    public bool IsAnyImageStabilized()
+    {
+        // This check is primarily for static mode logic.
+        foreach (var image in _trackedImages)
+        {
+            if (image.isStabilized)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>
     /// Gets the current tracking mode
@@ -303,6 +323,37 @@ public class ImageTracking : MonoBehaviour
             return;
         }
 
+        // If in static mode and at least one image is stabilized, skip new detections
+        // to save performance. Visibility checks for stabilized objects will handle re-enabling.
+        bool skipDetection = _trackingMode == ImageTrackingMode.Static && IsAnyImageStabilized();
+
+        if (skipDetection)
+        {
+            // Still convert webcam texture if resultTexture is provided for debugging/preview
+            if (resultTexture != null && _originalWebcamMat != null && !_originalWebcamMat.IsDisposed && _halfSizeMat != null && !_halfSizeMat.IsDisposed)
+            {
+                // Ensure dimensions match to avoid errors with webCamTextureToMat
+                if (webCamTexture.width == _originalWebcamMat.width() && webCamTexture.height == _originalWebcamMat.height() &&
+                    _halfSizeMat.width() > 0 && _halfSizeMat.height() > 0) 
+                {
+                    Utils.webCamTextureToMat(webCamTexture, _originalWebcamMat);
+                    Imgproc.resize(_originalWebcamMat, _halfSizeMat, _halfSizeMat.size());
+                    Utils.matToTexture2D(_halfSizeMat, resultTexture);
+                }
+            }
+            
+            _detectedPatternIds.Clear(); // No patterns are "detected" in this frame by OpenCV
+            foreach (var image in _trackedImages)
+            {
+                // For non-stabilized images, if we skip detection, they are not detected in this frame.
+                if (!image.isStabilized)
+                {
+                    image.isDetected = false;
+                }
+            }
+            return; // Skip the expensive pattern detection
+        }
+
         // Get image from webcam at full size
         Utils.webCamTextureToMat(webCamTexture, _originalWebcamMat);
 
@@ -352,9 +403,10 @@ public class ImageTracking : MonoBehaviour
     }
 
         /// <summary>
-    /// Estimates the poses of all currently detected marker images
+    /// Estimates the poses of all currently detected marker images.
+    /// Uses the _arCamera field if set for pose calculations and visibility checks.
     /// </summary>
-    /// <param name="camTransform">The transform of the camera</param>
+    /// <param name="camTransform">Transform of the AR camera. Used as a fallback if _arCamera is not set for pose calculations.</param>
     public void EstimateImagePoses(Transform camTransform)
     {
         if (!_isReady)
@@ -362,13 +414,46 @@ public class ImageTracking : MonoBehaviour
             Debug.LogError("ImageTracking has not been initialized.");
             return;
         }
+
+        Plane[] frustumPlanes = null;
+        if (_arCamera != null) // Visibility checks require _arCamera
+        {
+            frustumPlanes = GeometryUtility.CalculateFrustumPlanes(_arCamera);
+        }
+        else if (_trackingMode == ImageTrackingMode.Static)
+        {
+            Debug.LogWarning("ImageTracking: _arCamera is not assigned. Visibility checks for static stabilized markers will be skipped.");
+        }
     
         foreach (var image in _trackedImages)
         {
-            // Skip already stabilized images in static mode
+            // Handle stabilized images in static mode: check visibility
             if (_trackingMode == ImageTrackingMode.Static && image.isStabilized)
             {
-                continue;
+                // Visibility check only if _arCamera and its frustumPlanes are available
+                if (image.virtualObject != null && _arCamera != null && frustumPlanes != null)
+                {
+                    Renderer objectRenderer = image.virtualObject.GetComponentInChildren<Renderer>();
+                    // Check if the object is currently supposed to be visible (renderer.enabled is true)
+                    if (objectRenderer != null && objectRenderer.enabled) 
+                    {
+                        bool isVisible = GeometryUtility.TestPlanesAABB(frustumPlanes, objectRenderer.bounds);
+                        if (!isVisible)
+                        {
+                            Debug.Log($"Static marker {image.data.id} ({image.virtualObject.name}) no longer visible. Hiding and re-enabling tracking.");
+                            SetGameObjectVisibility(image.virtualObject, false);
+                            image.isStabilized = false;
+                            image.similarPoseCount = 0;
+                            image.recentPoses.Clear();
+                            // If IsAnyImageStabilized() becomes false, DetectImages will resume full detection next frame.
+                        }
+                    }
+                    else if (objectRenderer == null)
+                    {
+                        Debug.LogWarning($"Virtual object for {image.data.id} ({image.virtualObject.name}) is missing a Renderer. Cannot check visibility for static mode.");
+                    }
+                }
+                continue; // Skip pose estimation for stabilized (and still visible or uncheckable) markers
             }
     
             if (image.isDetected && image.virtualObject != null)
