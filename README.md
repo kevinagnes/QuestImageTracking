@@ -32,7 +32,7 @@ This project has been tested with **OpenCV for Unity v2.6.5**.
 
 **ImageTracking.cs** includes two tracking modes:
 - **Dynamic**: tracks the targets continuously applying some filtering to reduce jitter
-- **Static**: performs an initial detection and pose estimation until the target is stabilized. If there is a single target then image tracking will stop and fall back to the headset which is more stable. You can adjust in the settings how many poses will be used to consider the target stable.
+- **Static**: performs an initial detection and pose estimation until the target is stabilized. You can adjust in the settings how many poses will be used to consider the target stable.
 
 To add a new tracked image to the system, add a new element in the **Tracked Images** array, including the Tracked Image Data and the object from the scene you want to show with the image. 
 
@@ -50,7 +50,7 @@ Two example scenes have been included in the project, each one showcasing each m
 
 - The pattern detection and pose estimation has a **notable performance impact** which adds on top of the Passthrough Camera Use. Decreasing **Processing Downsample Factor** will lead to a performance increase but a decrease of tracking quality.
 
-- On Static mode the tracking will be active until all the targets have been stabilized. The scene will be jittery until this happens. This is why the StaticImageTracking scene is using just a single target. One option could be disabling image tracking once a target is stabilized and then reenable it based based on the distance to the target, a user action or a time interval
+- On Static mode pattern detection will stop once a target is stabilized to keep the best possible performance. Once the virtual object of the active pattern gets outside the camera frustum the pattern detection will resume. Currently this mode works with only one marker at a time
 
 ## Reference Repositories
 
