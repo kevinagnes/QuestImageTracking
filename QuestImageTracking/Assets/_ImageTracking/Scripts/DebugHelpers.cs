@@ -1,6 +1,6 @@
 using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.Features2dModule;
-using OpenCVForUnity.UnityUtils;
+using OpenCVForUnity.UnityIntegration;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -28,7 +28,7 @@ namespace OpenCVMarkerLessAR
         {
             Texture2D texture = new Texture2D(mat.cols(), mat.rows(), TextureFormat.RGBA32, false);
 
-            Utils.matToTexture2D(mat, texture);
+            OpenCVMatUtils.MatToTexture2D(mat, texture);
 
             // gameObject.transform.localScale = new Vector3(texture.width, texture.height, 1);
             gameObject.GetComponent<Renderer>().material.mainTexture = texture;

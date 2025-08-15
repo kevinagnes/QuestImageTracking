@@ -1,7 +1,7 @@
 using UnityEngine;
 using OpenCVMarkerLessAR;
-using OpenCVForUnity.UnityUtils;
 using System.Collections.Generic;
+using OpenCVForUnity.UnityIntegration;
 
 [System.Serializable]
 public class ARTrackedImage
@@ -23,17 +23,17 @@ public class ARTrackedImage
     public bool isDetected;
     
     [System.NonSerialized]
-    public PoseData prevPose;
+    public OpenCVARUtils.PoseData prevPose;
 
     // Static mode stabilization data
     [HideInInspector] public bool isStabilized = false;
-    [HideInInspector] public List<PoseData> recentPoses = new List<PoseData>();
+    [HideInInspector] public List<OpenCVARUtils.PoseData> recentPoses = new List<OpenCVARUtils.PoseData>();
     [HideInInspector] public int similarPoseCount = 0;
 
     public ARTrackedImage()
     {
         trackingInfo = new PatternTrackingInfo();
-        prevPose = new PoseData();
+        prevPose = new OpenCVARUtils.PoseData();
         pattern = new Pattern();
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using OpenCVForUnity.Calib3dModule;
 using OpenCVForUnity.CoreModule;
 using OpenCVForUnity.ImgprocModule;
+using OpenCVForUnity.UnityIntegration;
 using OpenCVForUnity.UnityUtils;
 using OpenCVMarkerLessAR;
 using UnityEngine;
@@ -165,7 +166,7 @@ public class ImageTracking : MonoBehaviour
         {
             // Convert the Texture2D to an OpenCV Mat
             Mat patternMat = new Mat(trackedImage.data.markerTexture.height, trackedImage.data.markerTexture.width, CvType.CV_8UC4);
-            Utils.texture2DToMat(trackedImage.data.markerTexture, patternMat);
+            OpenCVMatUtils.Texture2DToMat(trackedImage.data.markerTexture, patternMat);
 
             // Create the pattern object if needed
             if (trackedImage.pattern == null)
@@ -336,9 +337,9 @@ public class ImageTracking : MonoBehaviour
                 if (webCamTexture.width == _originalWebcamMat.width() && webCamTexture.height == _originalWebcamMat.height() &&
                     _halfSizeMat.width() > 0 && _halfSizeMat.height() > 0) 
                 {
-                    Utils.webCamTextureToMat(webCamTexture, _originalWebcamMat);
+                    OpenCVMatUtils.WebCamTextureToMat(webCamTexture, _originalWebcamMat);
                     Imgproc.resize(_originalWebcamMat, _halfSizeMat, _halfSizeMat.size());
-                    Utils.matToTexture2D(_halfSizeMat, resultTexture);
+                    OpenCVMatUtils.MatToTexture2D(_halfSizeMat, resultTexture);
                 }
             }
             
@@ -355,7 +356,7 @@ public class ImageTracking : MonoBehaviour
         }
 
         // Get image from webcam at full size
-        Utils.webCamTextureToMat(webCamTexture, _originalWebcamMat);
+        OpenCVMatUtils.WebCamTextureToMat(webCamTexture, _originalWebcamMat);
 
         // Resize for processing
         Imgproc.resize(_originalWebcamMat, _halfSizeMat, _halfSizeMat.size());
@@ -363,7 +364,7 @@ public class ImageTracking : MonoBehaviour
         // Display result if requested
         if (resultTexture != null)
         {
-            Utils.matToTexture2D(_halfSizeMat, resultTexture);
+            OpenCVMatUtils.MatToTexture2D(_halfSizeMat, resultTexture);
         }
 
         // Reset detection state for all markers
@@ -473,32 +474,32 @@ public class ImageTracking : MonoBehaviour
                 ARM = camTransform.localToWorldMatrix * ARM;
     
                 // Extract the current pose from the transformation matrix
-                PoseData currentPose = ARUtils.ConvertMatrixToPoseData(ref ARM);
+                OpenCVARUtils.PoseData currentPose = OpenCVARUtils.ConvertMatrixToPoseData(ref ARM);
                 
                 // Apply depth adjustment (brings object closer or pushes it farther)
-                Vector3 cameraToObject = currentPose.pos - camTransform.position;
+                Vector3 cameraToObject = currentPose.Pos - camTransform.position;
                 float currentDistance = cameraToObject.magnitude;
                 Vector3 direction = cameraToObject.normalized;
                 
                 // Adjust the position along the camera-to-object vector based on this marker's size
-                currentPose.pos = camTransform.position + direction * (currentDistance * image.data.physicalSize);
+                currentPose.Pos = camTransform.position + direction * (currentDistance * image.data.physicalSize);
                 
                 if (_trackingMode == ImageTrackingMode.Dynamic)
                 {
                     // Apply smoothing if we have previous pose data
-                    if (image.prevPose.rot != default)
+                    if (image.prevPose.Rot != default)
                     {
                         // Lerp between previous and current poses based on the filter coefficient
-                        currentPose.pos = Vector3.Lerp(image.prevPose.pos, currentPose.pos, 1 - _dynamicPoseFilterCoefficient);
-                        currentPose.rot = Quaternion.Slerp(image.prevPose.rot, currentPose.rot, 1 - _dynamicPoseFilterCoefficient);
+                        currentPose.Pos = Vector3.Lerp(image.prevPose.Pos, currentPose.Pos, 1 - _dynamicPoseFilterCoefficient);
+                        currentPose.Rot = Quaternion.Slerp(image.prevPose.Rot, currentPose.Rot, 1 - _dynamicPoseFilterCoefficient);
                     }
-    
+
                     // Save the current pose for next frame
                     image.prevPose = currentPose;
-    
+
                     // Apply pose to virtual object
-                    Matrix4x4 smoothedARM = ARUtils.ConvertPoseDataToMatrix(ref currentPose);
-                    ARUtils.SetTransformFromMatrix(image.virtualObject.transform, ref smoothedARM);
+                    Matrix4x4 smoothedARM = OpenCVARUtils.ConvertPoseDataToMatrix(ref currentPose);
+                    OpenCVARUtils.SetTransformFromMatrix(image.virtualObject.transform, ref smoothedARM);
                     
                     // Apply scale adjustment directly to the game object based on this marker's size
                     image.virtualObject.transform.localScale = Vector3.one * image.data.physicalSize;
@@ -532,7 +533,7 @@ public class ImageTracking : MonoBehaviour
     /// <summary>
     /// Processes poses for static tracking mode, checking for stability
     /// </summary>
-    private void ProcessStaticPose(ARTrackedImage image, PoseData currentPose)
+    private void ProcessStaticPose(ARTrackedImage image, OpenCVARUtils.PoseData currentPose)
     {
         // If we don't have enough poses yet, just add the current one
         if (image.recentPoses.Count < _stabilityPoseCount)
@@ -546,8 +547,8 @@ public class ImageTracking : MonoBehaviour
             else
             {
                 // Check if this pose is similar to the last one
-                PoseData lastPose = image.recentPoses[image.recentPoses.Count - 1];
-                
+                OpenCVARUtils.PoseData lastPose = image.recentPoses[image.recentPoses.Count - 1];
+
                 if (IsPoseSimilar(lastPose, currentPose))
                 {
                     // The pose is similar, increment counter and add to list
@@ -571,11 +572,11 @@ public class ImageTracking : MonoBehaviour
         if (image.similarPoseCount >= _stabilityPoseCount && !image.isStabilized)
         {
             // Calculate the average pose
-            PoseData averagePose = CalculateAveragePose(image.recentPoses);
+            OpenCVARUtils.PoseData averagePose = CalculateAveragePose(image.recentPoses);
             
             // Apply the stable pose to the virtual object
-            Matrix4x4 stableMatrix = ARUtils.ConvertPoseDataToMatrix(ref averagePose);
-            ARUtils.SetTransformFromMatrix(image.virtualObject.transform, ref stableMatrix);
+            Matrix4x4 stableMatrix = OpenCVARUtils.ConvertPoseDataToMatrix(ref averagePose);
+            OpenCVARUtils.SetTransformFromMatrix(image.virtualObject.transform, ref stableMatrix);
             
             // Apply scale adjustment
             image.virtualObject.transform.localScale = Vector3.one * image.data.physicalSize;
@@ -601,14 +602,14 @@ public class ImageTracking : MonoBehaviour
     /// <summary>
     /// Checks if two poses are similar within the configured thresholds
     /// </summary>
-    private bool IsPoseSimilar(PoseData pose1, PoseData pose2)
+    private bool IsPoseSimilar(OpenCVARUtils.PoseData pose1, OpenCVARUtils.PoseData pose2)
     {
         // Check position distance
-        float positionDifference = Vector3.Distance(pose1.pos, pose2.pos);
-        
+        float positionDifference = Vector3.Distance(pose1.Pos, pose2.Pos);
+
         // Check angle difference
-        float angleDifference = Quaternion.Angle(pose1.rot, pose2.rot);
-        
+        float angleDifference = Quaternion.Angle(pose1.Rot, pose2.Rot);
+
         return positionDifference <= _maxPositionDifference && 
                angleDifference <= _maxAngleDifference;
     }
@@ -616,11 +617,11 @@ public class ImageTracking : MonoBehaviour
     /// <summary>
     /// Calculates the average of a set of poses
     /// </summary>
-    private PoseData CalculateAveragePose(List<PoseData> poses)
+    private OpenCVARUtils.PoseData CalculateAveragePose(List<OpenCVARUtils.PoseData> poses)
     {
         if (poses.Count == 0)
-            return new PoseData();
-            
+            return new OpenCVARUtils.PoseData();
+
         if (poses.Count == 1)
             return poses[0];
         
@@ -630,11 +631,11 @@ public class ImageTracking : MonoBehaviour
         // Sum all positions
         foreach (var pose in poses)
         {
-            sumPosition += pose.pos;
+            sumPosition += pose.Pos;
             
             // Convert quaternion to vector4 for averaging
-            Vector4 q = new Vector4(pose.rot.x, pose.rot.y, pose.rot.z, pose.rot.w);
-            
+            Vector4 q = new Vector4(pose.Rot.x, pose.Rot.y, pose.Rot.z, pose.Rot.w);
+
             // Handle quaternion double-cover: ensure all quaternions are in the same hemisphere
             if (Vector4.Dot(q, sumRotation) < 0)
             {
@@ -650,8 +651,8 @@ public class ImageTracking : MonoBehaviour
         // Normalize the average quaternion
         Vector4 avgRotationVec = sumRotation.normalized;
         Quaternion avgRotation = new Quaternion(avgRotationVec.x, avgRotationVec.y, avgRotationVec.z, avgRotationVec.w);
-        
-        return new PoseData { pos = avgPosition, rot = avgRotation };
+
+        return new OpenCVARUtils.PoseData { Pos = avgPosition, Rot = avgRotation };
     }
     
     /// <summary>
